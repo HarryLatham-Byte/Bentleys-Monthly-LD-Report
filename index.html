@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>L&D Executive Dashboard | Bentleys QLD</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            /* UI Primary: Orange | Chart Palette: Mixed */
+            --primary: #F97316;
+            /* Orange */
+            --success: #10B981;
+            /* Green */
+            --info: #2563EB;
+            /* Blue */
+            --warning: #F59E0B;
+            /* Orange */
+            --purple: #7C3AED;
+            /* Purple */
+            --secondary: #1E293B;
+            --bg-body: #F1F5F9;
+            --bg-surface: #FFFFFF;
+            --text-primary: #0F172A;
+            --text-secondary: #64748B;
+            --border: #E2E8F0;
+            --sidebar-bg: #1E293B;
+            --sidebar-text: #F8FAFC;
+            --radius: 12px;
+            --transition: 0.2s ease;
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #020617;
+            --bg-surface: #1E293B;
+            --text-primary: #F8FAFC;
+            --text-secondary: #94A3B8;
+            --border: #334155;
+            --sidebar-bg: #0F172A;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+        }
+
+        body {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            overflow-x: hidden;
+            align-items: stretch;
+        }
+
+        /* Sidebar */
+        aside {
+            background-color: var(--sidebar-bg);
+            color: var(--sidebar-text);
+            padding: 2.5rem 1.5rem;
+            display: flex;
+            gap: 2.5rem;
+            flex-direction: column;
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--warning);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.875rem 1.25rem;
+            border-radius: var(--radius);
+            color: var(--sidebar-text);
+            text-decoration: none;
+            font-weight: 500;
+            opacity: 0.7;
+            transition: var(--transition);
+            cursor: pointer;
+        }
+
+        .nav-link:hover {
+            opacity: 1;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-link.active {
+            opacity: 1;
+            background-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+        }
+
+        /* Main & Global Filter Bar */
+        main {
+            min-width: 0;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .top-bar-sticky {
+            position: sticky;
+            top: 0;
+            z-index: 900;
+            background: rgba(241, 245, 249, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            padding: 1.25rem 2.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        [data-theme="dark"] .top-bar-sticky {
+            background: rgba(2, 6, 23, 0.9);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title h1 {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .global-filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            padding: 0.5rem 0;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .filter-group label {
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .filter-input {
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-surface);
+            color: var(--text-primary);
+            outline: none;
+            font-size: 0.85rem;
+            transition: var(--transition);
+        }
+
+        .filter-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.1);
+        }
+
+        .content-area {
+            padding: 2.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            flex: 1;
+        }
+
+        /* Views */
+        .view {
+            display: none;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .view.active {
+            display: flex;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* KPI */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .kpi-card {
+            background: var(--bg-surface);
+            padding: 1.25rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border);
+            transition: transform 0.2s ease;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .kpi-card .label {
+            color: var(--text-secondary);
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .kpi-card .value {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 1.35rem;
+            font-weight: 800;
+            margin-top: 0.5rem;
+        }
+
+        .val-primary {
+            color: var(--primary);
+        }
+
+        .val-success {
+            color: var(--success);
+        }
+
+        .val-info {
+            color: var(--info);
+        }
+
+        .val-warning {
+            color: var(--warning);
+        }
+
+        /* Charts */
+        .grid-dashboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: var(--bg-surface);
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-md);
+        }
+
+        .card-header {
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 260px;
+            width: 100%;
+        }
+
+        /* Table */
+        .table-wrap {
+            background: var(--bg-surface);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-md);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: rgba(0, 0, 0, 0.01);
+            text-align: left;
+            padding: 1rem 1.5rem;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+        }
+
+        .status-pill {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .status-completed {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+
+        .status-pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: #D97706;
+        }
+
+        /* Upload Hero */
+        .upload-hero {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            background: var(--bg-surface);
+            border: 2px dashed var(--border);
+            border-radius: 24px;
+            margin: 2rem;
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-theme {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 1200px) {
+            .grid-dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body data-theme="light">
+    <aside>
+        <div class="logo"><i data-lucide="bar-chart-big"></i> Bentleys L&D</div>
+        <ul class="nav-list">
+            <li class="nav-link active" data-view="overview"><i data-lucide="layout-grid"></i> Overview</li>
+            <li class="nav-link" data-view="details"><i data-lucide="list"></i> Detailed Records</li>
+        </ul>
+    </aside>
+
+    <main>
+        <!-- Sticky Global Filter Bar -->
+        <div id="stickyTopBar" class="top-bar-sticky" style="display: none;">
+            <div class="header">
+                <div class="header-title">
+                    <h1>Learning Intelligence</h1>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-theme" id="themeToggle"><i data-lucide="sun"></i></button>
+                    <button class="btn btn-primary" id="resetFilters"><i data-lucide="rotate-ccw"></i> Reset</button>
+                </div>
+            </div>
+            <div class="global-filters">
+                <div class="filter-group"><label>Start Date</label><input type="date" id="g-startDate"
+                        class="filter-input"></div>
+                <div class="filter-group"><label>End Date</label><input type="date" id="g-endDate" class="filter-input">
+                </div>
+                <div class="filter-group"><label>Team / Department</label><select id="g-team" class="filter-input">
+                        <option value="">All Teams</option>
+                    </select></div>
+                <div class="filter-group"><label>Office</label><select id="g-office" class="filter-input">
+                        <option value="">All Offices</option>
+                    </select></div>
+            </div>
+        </div>
+
+        <div id="uploadView" class="upload-hero">
+            <div style="text-align: center; max-width: 450px;">
+                <div
+                    style="background: rgba(249, 115, 22, 0.1); width: 80px; height: 80px; border-radius: 24px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem;">
+                    <i data-lucide="upload" style="width: 36px; height: 36px; color: var(--primary);"></i>
+                </div>
+                <h2 style="font-family: 'Plus Jakarta Sans'; font-weight: 800; margin-bottom: 1rem;">L&D Report Center
+                </h2>
+                <p style="color: var(--text-secondary); margin-bottom: 2rem;">Upload your training CSV to activate the
+                    analytics suite.</p>
+                <button class="btn btn-primary" id="selectBtn" style="margin-bottom: 1rem;">Select CSV File</button>
+                <div style="display: block;"><button class="btn btn-theme"
+                        onclick="event.stopPropagation(); loadDemoData();">View with Sample Data</button></div>
+                <input type="file" id="fileInput" accept=".csv" style="display: none;">
+            </div>
+        </div>
+
+        <div id="contentArea" class="content-area" style="display: none;">
+            <!-- OVERVIEW VIEW -->
+            <div id="viewOverview" class="view active">
+                <div class="kpi-row">
+                    <div class="kpi-card">
+                        <div class="label">Total Enrolments</div>
+                        <div class="value val-info" id="kpi-enrol">0</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="label">Total Completions</div>
+                        <div class="value val-success" id="kpi-comp">0</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="label">CPD Hours</div>
+                        <div class="value val-primary" id="kpi-cpd">0</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="label">Completion Rate</div>
+                        <div class="value val-warning" id="kpi-rate">0%</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="label">Avg Hours</div>
+                        <div class="value" id="kpi-avg">0.0</div>
+                    </div>
+                </div>
+
+                <div class="grid-dashboard">
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">Completion Velocity</span></div>
+                        <div class="chart-wrapper"><canvas id="chartTrend"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">CPD by Team</span></div>
+                        <div class="chart-wrapper"><canvas id="chartTeamCPD"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">Training Mix Distribution</span></div>
+                        <div class="chart-wrapper"><canvas id="chartTypeMix"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">Office Performance Benchmarking</span></div>
+                        <div class="chart-wrapper"><canvas id="chartOffice"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">Top Learning Programs</span></div>
+                        <div class="chart-wrapper"><canvas id="chartTopCourses"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">Organizational Roles</span></div>
+                        <div class="chart-wrapper"><canvas id="chartRoles"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DETAILS VIEW -->
+            <div id="viewDetails" class="view">
+                <div class="header">
+                    <h3>Detailed Training Log</h3><input type="text" id="recordSearch" class="filter-input"
+                        placeholder="Search by name, email or course..." style="width: 350px;">
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Learner</th>
+                                <th>Team & Office</th>
+                                <th>Course Title</th>
+                                <th>Status</th>
+                                <th>CPD</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        const State = {
+            raw: [],
+            filtered: [],
+            theme: localStorage.getItem('bentleys-theme-v6') || 'light',
+            charts: {},
+            activeView: 'overview',
+            // Colors: Purple, Green, Blue, Orange
+            palette: ['#7C3AED', '#10B981', '#2563EB', '#F59E0B', '#8B5CF6', '#34D399', '#60A5FA', '#FBBF24']
+        };
+
+        // --- Core Engine ---
+        function updateGlobalData() {
+            const start = document.getElementById('g-startDate').value;
+            const end = document.getElementById('g-endDate').value;
+            const team = document.getElementById('g-team').value;
+            const office = document.getElementById('g-office').value;
+            const search = (document.getElementById('recordSearch')?.value || '').toLowerCase();
+
+            State.filtered = State.raw.filter(d => {
+                // Date Filter (Applies to Completion Date)
+                let dateMatch = true;
+                if (d['Completion (Date)']) {
+                    const cDate = new Date(d['Completion (Date)']);
+                    if (start && cDate < new Date(start)) dateMatch = false;
+                    if (end && cDate > new Date(end)) dateMatch = false;
+                } else if (start || end) {
+                    dateMatch = false; // Only show pending if no dates selected? No, usually date filters hit completions.
+                }
+
+                const teamMatch = !team || d.Team === team || d.Department === team;
+                const officeMatch = !office || d.Office === office;
+                const searchMatch = !search ||
+                    d.Name?.toLowerCase().includes(search) ||
+                    d.Email?.toLowerCase().includes(search) ||
+                    d['Training Title']?.toLowerCase().includes(search);
+
+                return dateMatch && teamMatch && officeMatch && searchMatch;
+            });
+
+            refreshUI();
+        }
+
+        function refreshUI() {
+            // KPI Refresh
+            const total = State.filtered.length;
+            const completed = State.filtered.filter(d => d['Completion (Date)']).length;
+            const cpd = State.filtered.reduce((s, d) => s + (parseFloat(d['CPD Hours']) || 0), 0);
+            const learners = new Set(State.filtered.map(d => d.Email)).size;
+
+            document.getElementById('kpi-enrol').innerText = total.toLocaleString();
+            document.getElementById('kpi-comp').innerText = completed.toLocaleString();
+            document.getElementById('kpi-cpd').innerText = Math.round(cpd).toLocaleString();
+            document.getElementById('kpi-rate').innerText = (total ? (completed / total * 100).toFixed(1) : 0) + '%';
+            document.getElementById('kpi-avg').innerText = (learners ? (cpd / learners).toFixed(1) : 0);
+
+            if (State.activeView === 'overview') {
+                setTimeout(renderCharts, 10); // Slight delay for smoother view switching
+            } else {
+                renderTable();
+            }
+        }
+
+        // --- Chart Scheme ---
+        function renderCharts() {
+            Object.values(State.charts).forEach(c => c.destroy());
+            const d = State.theme === 'dark';
+            const colors = { text: d ? '#94A3B8' : '#64748B', grid: d ? '#334155' : '#E2E8F0' };
+
+            // 1. Velocity
+            const trends = {};
+            State.filtered.forEach(x => { if (x['Completion (Date)']) { const m = new Date(x['Completion (Date)']).toLocaleString('default', { month: 'short', year: '2-digit' }); trends[m] = (trends[m] || 0) + 1; } });
+            State.charts.v = new Chart(document.getElementById('chartTrend'), {
+                type: 'line', data: { labels: Object.keys(trends), datasets: [{ data: Object.values(trends), borderColor: State.palette[0], backgroundColor: 'rgba(124, 58, 237, 0.1)', fill: true, tension: 0.4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: colors.grid }, ticks: { color: colors.text } }, x: { grid: { display: false }, ticks: { color: colors.text } } } }
+            });
+
+            // 2. Team CPD
+            const teamCPD = {};
+            State.filtered.forEach(x => { const t = x.Team || x.Department || 'N/A'; teamCPD[t] = (teamCPD[t] || 0) + (parseFloat(x['CPD Hours']) || 0); });
+            State.charts.team = new Chart(document.getElementById('chartTeamCPD'), {
+                type: 'bar', data: { labels: Object.keys(teamCPD), datasets: [{ data: Object.values(teamCPD), backgroundColor: State.palette[2], borderRadius: 4 }] },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: colors.grid }, ticks: { color: colors.text } }, y: { ticks: { color: colors.text } } } }
+            });
+
+            // 3. Type Mix
+            const types = {};
+            State.filtered.forEach(x => { const t = x['Training Type'] || 'General'; types[t] = (types[t] || 0) + 1; });
+            State.charts.type = new Chart(document.getElementById('chartTypeMix'), {
+                type: 'doughnut', data: { labels: Object.keys(types), datasets: [{ data: Object.values(types), backgroundColor: State.palette, borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { position: 'bottom', labels: { color: colors.text, usePointStyle: true, boxWidth: 8 } } } }
+            });
+
+            // 4. Offices
+            const off = {};
+            State.filtered.forEach(x => { if (!off[x.Office]) off[x.Office] = { t: 0, c: 0 }; off[x.Office].t++; if (x['Completion (Date)']) off[x.Office].c++; });
+            State.charts.o = new Chart(document.getElementById('chartOffice'), {
+                type: 'bar', data: { labels: Object.keys(off), datasets: [{ data: Object.values(off).map(i => (i.c / i.t * 100).toFixed(1)), backgroundColor: State.palette[1], borderRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { max: 100, ticks: { color: colors.text } }, x: { ticks: { color: colors.text } } } }
+            });
+
+            // 5. Courses
+            const courses = {}; State.filtered.forEach(x => courses[x['Training Title']] = (courses[x['Training Title']] || 0) + 1);
+            const top = Object.entries(courses).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            State.charts.c = new Chart(document.getElementById('chartTopCourses'), {
+                type: 'bar', data: { labels: top.map(x => x[0].substring(0, 18) + '...'), datasets: [{ data: top.map(x => x[1]), backgroundColor: State.palette[3] }] },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            // 6. Roles
+            const roles = {}; State.filtered.forEach(x => { const r = x['Job Title'] || x.Role || 'N/A'; roles[r] = (roles[r] || 0) + 1; });
+            State.charts.r = new Chart(document.getElementById('chartRoles'), {
+                type: 'pie', data: { labels: Object.keys(roles), datasets: [{ data: Object.values(roles), backgroundColor: State.palette }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: colors.text, boxWidth: 8 } } } }
+            });
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = State.filtered.slice(0, 100).map(d => `
+                <tr>
+                    <td><div style="font-weight: 700;">${d.Name || 'N/A'}</div><div style="font-size: 0.7rem; color: var(--text-secondary);">${d.Email || ''}</div></td>
+                    <td><div style="font-weight: 600;">${d.Team || d.Department || 'N/A'}</div><div style="font-size: 0.7rem; color: var(--text-secondary);">${d.Office || ''}</div></td>
+                    <td><div style="max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${d['Training Title'] || 'Untitled'}</div></td>
+                    <td><span class="status-pill ${d['Completion (Date)'] ? 'status-completed' : 'status-pending'}">${d['Completion (Date)'] ? 'COMPLETED' : 'PENDING'}</span></td>
+                    <td style="font-weight: 800; color: var(--primary);">${d['CPD Hours'] || 0}h</td>
+                </tr>
+            `).join('');
+        }
+
+        // --- Initialization ---
+        function startup() {
+            const teams = [...new Set(State.raw.map(d => d.Team || d.Department))].sort();
+            const offices = [...new Set(State.raw.map(d => d.Office))].sort();
+            document.getElementById('g-team').innerHTML = '<option value="">All Teams</option>' + teams.map(t => `<option value="${t}">${t}</option>`).join('');
+            document.getElementById('g-office').innerHTML = '<option value="">All Offices</option>' + offices.map(o => `<option value="${o}">${o}</option>`).join('');
+
+            document.getElementById('stickyTopBar').style.display = 'flex';
+            document.getElementById('uploadView').style.display = 'none';
+            document.getElementById('contentArea').style.display = 'flex';
+            updateGlobalData();
+        }
+
+        ['g-startDate', 'g-endDate', 'g-team', 'g-office', 'recordSearch'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.onchange = el.oninput = updateGlobalData;
+        });
+
+        document.getElementById('resetFilters').onclick = () => {
+            console.log("Resetting filters...");
+            document.getElementById('g-startDate').value = '';
+            document.getElementById('g-endDate').value = '';
+            document.getElementById('g-team').value = '';
+            document.getElementById('g-office').value = '';
+            const searchBox = document.getElementById('recordSearch');
+            if (searchBox) searchBox.value = '';
+
+            updateGlobalData();
+        };
+
+        const fileIn = document.getElementById('fileInput');
+        fileIn.onchange = (e) => {
+            if (e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (ev) => { State.raw = Papa.parse(ev.target.result, { header: true, dynamicTyping: true, skipEmptyLines: true }).data; startup(); };
+                reader.readAsText(e.target.files[0]);
+            }
+        };
+        document.getElementById('uploadView').onclick = () => fileIn.click();
+
+        window.loadDemoData = () => {
+            State.raw = [
+                { "Name": "Harry Latham", "Email": "harry@bentleys.com", "Team": "Digital", "Training Title": "AI Strategy", "Completion (Date)": "2026-03-01", "CPD Hours": 3.5, "Office": "Brisbane", "Training Type": "Technical", "Job Title": "Director" },
+                { "Name": "Jane Austin", "Email": "jane@bentleys.com", "Team": "Audit", "Training Title": "Compliance", "Completion (Date)": "2026-03-02", "CPD Hours": 1.5, "Office": "Sydney", "Training Type": "Mandatory", "Job Title": "Manager" },
+                { "Name": "Bob Miller", "Email": "bob@bentleys.com", "Team": "Tax", "Training Title": "Tax Law", "Completion (Date)": null, "CPD Hours": 1.0, "Office": "Melbourne", "Training Type": "Optional", "Job Title": "Associate" }
+            ];
+            startup();
+        };
+
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.onclick = () => {
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                State.activeView = link.dataset.view;
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                document.getElementById('view' + State.activeView.charAt(0).toUpperCase() + State.activeView.slice(1)).classList.add('active');
+                updateGlobalData();
+            };
+        });
+
+        const appTheme = (t) => {
+            document.body.setAttribute('data-theme', t);
+            themeToggle.innerHTML = `<i data-lucide="${t === 'light' ? 'moon' : 'sun'}"></i>`;
+            lucide.createIcons();
+            if (State.raw.length) renderCharts();
+        };
+        themeToggle.onclick = () => { State.theme = State.theme === 'light' ? 'dark' : 'light'; localStorage.setItem('bentleys-theme-v6', State.theme); appTheme(State.theme); };
+        appTheme(State.theme);
+    </script>
+</body>
+
+</html>

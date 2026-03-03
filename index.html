@@ -532,11 +532,20 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Learner</th>
-                                <th>Team & Office</th>
-                                <th>Course Title</th>
-                                <th>Status</th>
-                                <th>CPD</th>
+                                <th onclick="sortTable('Name')" style="cursor:pointer;">Learner <i
+                                        data-lucide="chevrons-up-down" style="width:12px; height:12px;"></i></th>
+                                <th onclick="sortTable('Team')" style="cursor:pointer;">Team & Office <i
+                                        data-lucide="chevrons-up-down" style="width:12px; height:12px;"></i></th>
+                                <th onclick="sortTable('Manager')" style="cursor:pointer;">Manager <i
+                                        data-lucide="chevrons-up-down" style="width:12px; height:12px;"></i></th>
+                                <th onclick="sortTable('Training Title')" style="cursor:pointer;">Course Title <i
+                                        data-lucide="chevrons-up-down" style="width:12px; height:12px;"></i></th>
+                                <th onclick="sortTable('Enrolment')" style="cursor:pointer;">Enrolled <i
+                                        data-lucide="chevrons-up-down" style="width:12px; height:12px;"></i></th>
+                                <th onclick="sortTable('Completion')" style="cursor:pointer;">Completed <i
+                                        data-lucide="chevrons-up-down" style="width:12px; height:12px;"></i></th>
+                                <th onclick="sortTable('CPD Hours')" style="cursor:pointer;">CPD <i
+                                        data-lucide="chevrons-up-down" style="width:12px; height:12px;"></i></th>
                             </tr>
                         </thead>
                         <tbody id="tableBody"></tbody>
@@ -555,6 +564,7 @@
             theme: localStorage.getItem('bentleys-theme-v6') || 'light',
             charts: {},
             activeView: 'overview',
+            sort: { col: null, asc: true },
             // Colors: Purple, Green, Blue, Orange
             palette: ['#7C3AED', '#10B981', '#2563EB', '#F59E0B', '#8B5CF6', '#34D399', '#60A5FA', '#FBBF24']
         };
@@ -568,14 +578,18 @@
             const search = (document.getElementById('recordSearch')?.value || '').toLowerCase();
 
             State.filtered = State.raw.filter(d => {
-                // Date Filter (Applies to Completion Date)
+                // Normalize dates
+                const cDateStr = d.Completion || d['Completion (Date)'];
+                const eDateStr = d.Enrolment || d['Enrolment (Date)'];
+
                 let dateMatch = true;
-                if (d['Completion (Date)']) {
-                    const cDate = new Date(d['Completion (Date)']);
+                if (cDateStr) {
+                    const cDate = new Date(cDateStr);
+                    cDate.setHours(0, 0, 0, 0);
                     if (start && cDate < new Date(start)) dateMatch = false;
                     if (end && cDate > new Date(end)) dateMatch = false;
                 } else if (start || end) {
-                    dateMatch = false; // Only show pending if no dates selected? No, usually date filters hit completions.
+                    dateMatch = false;
                 }
 
                 const teamMatch = !team || d.Team === team || d.Department === team;
@@ -583,18 +597,53 @@
                 const searchMatch = !search ||
                     d.Name?.toLowerCase().includes(search) ||
                     d.Email?.toLowerCase().includes(search) ||
-                    d['Training Title']?.toLowerCase().includes(search);
+                    d['Training Title']?.toLowerCase().includes(search) ||
+                    d.Manager?.toLowerCase().includes(search);
 
                 return dateMatch && teamMatch && officeMatch && searchMatch;
             });
 
+            if (State.sort.col) {
+                applySorting();
+            }
+
             refreshUI();
+        }
+
+        function sortTable(col) {
+            if (State.sort.col === col) {
+                State.sort.asc = !State.sort.asc;
+            } else {
+                State.sort.col = col;
+                State.sort.asc = true;
+            }
+            applySorting();
+            refreshUI();
+        }
+
+        function applySorting() {
+            const col = State.sort.col;
+            const asc = State.sort.asc;
+            State.filtered.sort((a, b) => {
+                let v1 = a[col] || '';
+                let v2 = b[col] || '';
+
+                // Handle numbers/dates
+                if (!isNaN(v1) && !isNaN(v2)) {
+                    v1 = parseFloat(v1);
+                    v2 = parseFloat(v2);
+                }
+
+                if (v1 < v2) return asc ? -1 : 1;
+                if (v1 > v2) return asc ? 1 : -1;
+                return 0;
+            });
         }
 
         function refreshUI() {
             // KPI Refresh
             const total = State.filtered.length;
-            const completed = State.filtered.filter(d => d['Completion (Date)']).length;
+            const completed = State.filtered.filter(d => d.Completion || d['Completion (Date)']).length;
             const cpd = State.filtered.reduce((s, d) => s + (parseFloat(d['CPD Hours']) || 0), 0);
             const learners = new Set(State.filtered.map(d => d.Email)).size;
 
@@ -619,7 +668,13 @@
 
             // 1. Velocity
             const trends = {};
-            State.filtered.forEach(x => { if (x['Completion (Date)']) { const m = new Date(x['Completion (Date)']).toLocaleString('default', { month: 'short', year: '2-digit' }); trends[m] = (trends[m] || 0) + 1; } });
+            State.filtered.forEach(x => {
+                const cDate = x.Completion || x['Completion (Date)'];
+                if (cDate) {
+                    const m = new Date(cDate).toLocaleString('default', { month: 'short', year: '2-digit' });
+                    trends[m] = (trends[m] || 0) + 1;
+                }
+            });
             State.charts.v = new Chart(document.getElementById('chartTrend'), {
                 type: 'line', data: { labels: Object.keys(trends), datasets: [{ data: Object.values(trends), borderColor: State.palette[0], backgroundColor: 'rgba(124, 58, 237, 0.1)', fill: true, tension: 0.4 }] },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: colors.grid }, ticks: { color: colors.text } }, x: { grid: { display: false }, ticks: { color: colors.text } } } }
@@ -643,7 +698,11 @@
 
             // 4. Offices
             const off = {};
-            State.filtered.forEach(x => { if (!off[x.Office]) off[x.Office] = { t: 0, c: 0 }; off[x.Office].t++; if (x['Completion (Date)']) off[x.Office].c++; });
+            State.filtered.forEach(x => {
+                if (!off[x.Office]) off[x.Office] = { t: 0, c: 0 };
+                off[x.Office].t++;
+                if (x.Completion || x['Completion (Date)']) off[x.Office].c++;
+            });
             State.charts.o = new Chart(document.getElementById('chartOffice'), {
                 type: 'bar', data: { labels: Object.keys(off), datasets: [{ data: Object.values(off).map(i => (i.c / i.t * 100).toFixed(1)), backgroundColor: State.palette[1], borderRadius: 4 }] },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { max: 100, ticks: { color: colors.text } }, x: { ticks: { color: colors.text } } } }
@@ -671,8 +730,10 @@
                 <tr>
                     <td><div style="font-weight: 700;">${d.Name || 'N/A'}</div><div style="font-size: 0.7rem; color: var(--text-secondary);">${d.Email || ''}</div></td>
                     <td><div style="font-weight: 600;">${d.Team || d.Department || 'N/A'}</div><div style="font-size: 0.7rem; color: var(--text-secondary);">${d.Office || ''}</div></td>
-                    <td><div style="max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${d['Training Title'] || 'Untitled'}</div></td>
-                    <td><span class="status-pill ${d['Completion (Date)'] ? 'status-completed' : 'status-pending'}">${d['Completion (Date)'] ? 'COMPLETED' : 'PENDING'}</span></td>
+                    <td><div style="font-weight: 500;">${d.Manager || '-'}</div></td>
+                    <td><div style="max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${d['Training Title']}">${d['Training Title'] || 'Untitled'}</div></td>
+                    <td style="font-size: 0.8rem;">${d.Enrolment || d['Enrolment (Date)'] || '-'}</td>
+                    <td><span class="status-pill ${(d.Completion || d['Completion (Date)']) ? 'status-completed' : 'status-pending'}">${(d.Completion || d['Completion (Date)']) ? (d.Completion || d['Completion (Date)']) : 'PENDING'}</span></td>
                     <td style="font-weight: 800; color: var(--primary);">${d['CPD Hours'] || 0}h</td>
                 </tr>
             `).join('');
@@ -720,9 +781,9 @@
 
         window.loadDemoData = () => {
             State.raw = [
-                { "Name": "Harry Latham", "Email": "harry@bentleys.com", "Team": "Digital", "Training Title": "AI Strategy", "Completion (Date)": "2026-03-01", "CPD Hours": 3.5, "Office": "Brisbane", "Training Type": "Technical", "Job Title": "Director" },
-                { "Name": "Jane Austin", "Email": "jane@bentleys.com", "Team": "Audit", "Training Title": "Compliance", "Completion (Date)": "2026-03-02", "CPD Hours": 1.5, "Office": "Sydney", "Training Type": "Mandatory", "Job Title": "Manager" },
-                { "Name": "Bob Miller", "Email": "bob@bentleys.com", "Team": "Tax", "Training Title": "Tax Law", "Completion (Date)": null, "CPD Hours": 1.0, "Office": "Melbourne", "Training Type": "Optional", "Job Title": "Associate" }
+                { "Name": "Harry Latham", "Email": "harry@bentleys.com", "Team": "Digital", "Training Title": "AI Strategy", "Enrolment": "2026-02-15", "Completion": "2026-03-01", "CPD Hours": 3.5, "Office": "Brisbane", "Training Type": "Technical", "Job Title": "Director", "Manager": "Stephen Moore" },
+                { "Name": "Jane Austin", "Email": "jane@bentleys.com", "Team": "Audit", "Training Title": "Compliance", "Enrolment": "2026-02-28", "Completion": "2026-03-02", "CPD Hours": 1.5, "Office": "Sydney", "Training Type": "Mandatory", "Job Title": "Manager", "Manager": "David Brown" },
+                { "Name": "Bob Miller", "Email": "bob@bentleys.com", "Team": "Tax", "Training Title": "Tax Law", "Enrolment": "2026-03-01", "Completion": null, "CPD Hours": 1.0, "Office": "Melbourne", "Training Type": "Optional", "Job Title": "Associate", "Manager": "Sarah Jenkins" }
             ];
             startup();
         };

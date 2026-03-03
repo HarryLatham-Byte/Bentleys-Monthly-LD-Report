@@ -316,6 +316,11 @@
             color: var(--text-primary);
         }
 
+        /* Full Width Card */
+        .card-full {
+            grid-column: 1 / -1;
+        }
+
         .chart-wrapper {
             position: relative;
             height: 260px;
@@ -457,13 +462,11 @@
                     style="background: rgba(249, 115, 22, 0.1); width: 80px; height: 80px; border-radius: 24px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem;">
                     <i data-lucide="upload" style="width: 36px; height: 36px; color: var(--primary);"></i>
                 </div>
-                <h2 style="font-family: 'Plus Jakarta Sans'; font-weight: 800; margin-bottom: 1rem;">L&D Report Center
+                <h2 style="font-family: 'Plus Jakarta Sans'; font-weight: 800; margin-bottom: 1rem;">L&D Report Centre
                 </h2>
                 <p style="color: var(--text-secondary); margin-bottom: 2rem;">Upload your training CSV to activate the
                     analytics suite.</p>
                 <button class="btn btn-primary" id="selectBtn" style="margin-bottom: 1rem;">Select CSV File</button>
-                <div style="display: block;"><button class="btn btn-theme"
-                        onclick="event.stopPropagation(); loadDemoData();">View with Sample Data</button></div>
                 <input type="file" id="fileInput" accept=".csv" style="display: none;">
             </div>
         </div>
@@ -512,11 +515,11 @@
                         <div class="chart-wrapper"><canvas id="chartOffice"></canvas></div>
                     </div>
                     <div class="card">
-                        <div class="card-header"><span class="card-title">Top Learning Programs</span></div>
+                        <div class="card-header"><span class="card-title">Top Learning Programmes</span></div>
                         <div class="chart-wrapper"><canvas id="chartTopCourses"></canvas></div>
                     </div>
-                    <div class="card">
-                        <div class="card-header"><span class="card-title">Organizational Roles</span></div>
+                    <div class="card card-full">
+                        <div class="card-header"><span class="card-title">Organisational Roles</span></div>
                         <div class="chart-wrapper"><canvas id="chartRoles"></canvas></div>
                     </div>
                 </div>
@@ -578,9 +581,9 @@
             const search = (document.getElementById('recordSearch')?.value || '').toLowerCase();
 
             State.filtered = State.raw.filter(d => {
-                // Normalize dates
-                const cDateStr = d.Completion || d['Completion (Date)'];
-                const eDateStr = d.Enrolment || d['Enrolment (Date)'];
+                // Normalize dates - Handle both user's CSV headers and standard Enrolment/Completion
+                const cDateStr = d.Completion || d['Completion Date'] || d['Completion (Date)'];
+                const eDateStr = d.Enrolment || d['Enrollment Date'] || d['Enrolment (Date)'];
 
                 let dateMatch = true;
                 if (cDateStr) {
@@ -643,7 +646,7 @@
         function refreshUI() {
             // KPI Refresh
             const total = State.filtered.length;
-            const completed = State.filtered.filter(d => d.Completion || d['Completion (Date)']).length;
+            const completed = State.filtered.filter(d => d.Completion || d['Completion Date'] || d['Completion (Date)']).length;
             const cpd = State.filtered.reduce((s, d) => s + (parseFloat(d['CPD Hours']) || 0), 0);
             const learners = new Set(State.filtered.map(d => d.Email)).size;
 
@@ -669,7 +672,7 @@
             // 1. Velocity
             const trends = {};
             State.filtered.forEach(x => {
-                const cDate = x.Completion || x['Completion (Date)'];
+                const cDate = x.Completion || x['Completion Date'] || x['Completion (Date)'];
                 if (cDate) {
                     const m = new Date(cDate).toLocaleString('default', { month: 'short', year: '2-digit' });
                     trends[m] = (trends[m] || 0) + 1;
@@ -701,7 +704,7 @@
             State.filtered.forEach(x => {
                 if (!off[x.Office]) off[x.Office] = { t: 0, c: 0 };
                 off[x.Office].t++;
-                if (x.Completion || x['Completion (Date)']) off[x.Office].c++;
+                if (x.Completion || x['Completion Date'] || x['Completion (Date)']) off[x.Office].c++;
             });
             State.charts.o = new Chart(document.getElementById('chartOffice'), {
                 type: 'bar', data: { labels: Object.keys(off), datasets: [{ data: Object.values(off).map(i => (i.c / i.t * 100).toFixed(1)), backgroundColor: State.palette[1], borderRadius: 4 }] },
@@ -726,17 +729,21 @@
 
         function renderTable() {
             const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = State.filtered.slice(0, 100).map(d => `
+            tbody.innerHTML = State.filtered.slice(0, 100).map(d => {
+                const cDate = d.Completion || d['Completion Date'] || d['Completion (Date)'];
+                const eDate = d.Enrolment || d['Enrollment Date'] || d['Enrolment (Date)'];
+                return `
                 <tr>
                     <td><div style="font-weight: 700;">${d.Name || 'N/A'}</div><div style="font-size: 0.7rem; color: var(--text-secondary);">${d.Email || ''}</div></td>
                     <td><div style="font-weight: 600;">${d.Team || d.Department || 'N/A'}</div><div style="font-size: 0.7rem; color: var(--text-secondary);">${d.Office || ''}</div></td>
                     <td><div style="font-weight: 500;">${d.Manager || '-'}</div></td>
                     <td><div style="max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${d['Training Title']}">${d['Training Title'] || 'Untitled'}</div></td>
-                    <td style="font-size: 0.8rem;">${d.Enrolment || d['Enrolment (Date)'] || '-'}</td>
-                    <td><span class="status-pill ${(d.Completion || d['Completion (Date)']) ? 'status-completed' : 'status-pending'}">${(d.Completion || d['Completion (Date)']) ? (d.Completion || d['Completion (Date)']) : 'PENDING'}</span></td>
+                    <td style="font-size: 0.8rem;">${eDate || '-'}</td>
+                    <td><span class="status-pill ${cDate ? 'status-completed' : 'status-pending'}">${cDate ? cDate : 'PENDING'}</span></td>
                     <td style="font-weight: 800; color: var(--primary);">${d['CPD Hours'] || 0}h</td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
         }
 
         // --- Initialization ---
@@ -778,15 +785,6 @@
             }
         };
         document.getElementById('uploadView').onclick = () => fileIn.click();
-
-        window.loadDemoData = () => {
-            State.raw = [
-                { "Name": "Harry Latham", "Email": "harry@bentleys.com", "Team": "Digital", "Training Title": "AI Strategy", "Enrolment": "2026-02-15", "Completion": "2026-03-01", "CPD Hours": 3.5, "Office": "Brisbane", "Training Type": "Technical", "Job Title": "Director", "Manager": "Stephen Moore" },
-                { "Name": "Jane Austin", "Email": "jane@bentleys.com", "Team": "Audit", "Training Title": "Compliance", "Enrolment": "2026-02-28", "Completion": "2026-03-02", "CPD Hours": 1.5, "Office": "Sydney", "Training Type": "Mandatory", "Job Title": "Manager", "Manager": "David Brown" },
-                { "Name": "Bob Miller", "Email": "bob@bentleys.com", "Team": "Tax", "Training Title": "Tax Law", "Enrolment": "2026-03-01", "Completion": null, "CPD Hours": 1.0, "Office": "Melbourne", "Training Type": "Optional", "Job Title": "Associate", "Manager": "Sarah Jenkins" }
-            ];
-            startup();
-        };
 
         document.querySelectorAll('.nav-link').forEach(link => {
             link.onclick = () => {
